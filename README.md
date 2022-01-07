@@ -8,6 +8,11 @@ Usage:
 ```
 execws <pod name> [--kubeconfig] [-n namespace] [-it] [-c container] <cmd>
 ```
+## Features
+
+* Aware of `HTTP_PROXY`/`HTTPS_PROXY` env variables
+* Uses standard Kubeconfig processing including `~/.kube/config` & `$KUBECONFIG` support
+* Doesn't use SPDY so might be more loadbalancer/reverse proxy friendly
 
 ### Acknowledgements
 
