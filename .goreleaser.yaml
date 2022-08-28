@@ -2,12 +2,20 @@ before:
   hooks:
     - go mod tidy
 builds:
-  - goos:
+  - env:
+      - CGO_ENABLED=0
+    goos:
       - linux
-      - windows
       - darwin
+      #- windows
+    goarch:
+      - amd64
+      - arm
+      - arm64
+    goarm: [6, 7]
 checksum:
-  name_template: '{{ .ProjectName }}_checksums.txt'
+  name_template: 'checksums.txt'
+  algorithm: sha256
 snapshot:
   name_template: "{{ incpatch .Version }}-next"
 changelog:
