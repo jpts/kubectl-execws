@@ -25,6 +25,14 @@ Flags:
   -t, --tty                          Stdin is a TTY
 ```
 
+## Features
+
+* Aware of `HTTP_PROXY`/`HTTPS_PROXY` env variables
+* Uses standard Kubeconfig processing including `~/.kube/config` & `$KUBECONFIG` support
+* Doesn't use SPDY so might be more loadbalancer/reverse proxy friendly
+* Supports a full TTY (terminal raw mode)
+* Can bypass the API server with direct connection to the nodes kubelet API
+
 ### Acknowledgements
 
 Work inspired by [rmohr/kubernetes-custom-exec](https://github.com/rmohr/kubernetes-custom-exec) and [kairen/websocket-exec](https://github.com/kairen/websocket-exec).
