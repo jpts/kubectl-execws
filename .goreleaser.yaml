@@ -1,0 +1,14 @@
+before:
+  hooks:
+    - go mod tidy
+builds:
+  - goos:
+      - linux
+      - windows
+      - darwin
+checksum:
+  name_template: '{{ .ProjectName }}_checksums.txt'
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+changelog:
+  sort: asc
