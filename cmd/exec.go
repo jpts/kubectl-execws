@@ -1,37 +1,36 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
-	"sync"
 
 	"github.com/gorilla/websocket"
+	"github.com/moby/term"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/klog/v2"
 )
 
 type Options struct {
-	Command       []string
-	Container     string
-	Kconfig       string
-	Namespace     string
-	Object        string
-	Pod           string
-	Stdin         bool
-	TTY           bool
-	noSanityCheck bool
-	noTLSVerify   bool
+	Command          []string
+	Container        string
+	Kconfig          string
+	Namespace        string
+	Object           string
+	Pod              string
+	Stdin            bool
+	TTY              bool
+	PodSpec          corev1.PodSpec
+	noSanityCheck    bool
+	noTLSVerify      bool
+	directExec       bool
+	directExecNodeIp string
 }
 
 var protocols = []string{
@@ -41,28 +40,19 @@ var protocols = []string{
 	"channel.k8s.io",
 }
 
+// https://github.com/kubernetes/kubernetes/blob/1a2f167d399b046bea6192df9e9b1ca7ac4f2365/staging/src/k8s.io/client-go/tools/remotecommand/remotecommand_websocket.go#L35
 const (
-	stdin = iota
-	stdout
-	stderr
+	streamStdIn  = 0
+	streamStdOut = 1
+	streamStdErr = 2
+	streamErr    = 3
+	streamResize = 4
 )
 
 type cliSession struct {
 	opts       Options
 	clientConf *rest.Config
 	namespace  string
-}
-
-type RoundTripCallback func(conn *websocket.Conn) error
-
-type WebsocketRoundTripper struct {
-	Dialer   *websocket.Dialer
-	Callback RoundTripCallback
-}
-
-type ApiServerError struct {
-	Reason  string `json:"reason"`
-	Message string `json:"message"`
 }
 
 // prep the session
@@ -107,15 +97,15 @@ func (c *cliSession) prepConfig() error {
 			return err
 		}
 
-		_, err = client.CoreV1().Pods(c.namespace).Get(context.TODO(), c.opts.Pod, metav1.GetOptions{})
+		res, err := client.CoreV1().Pods(c.namespace).Get(context.TODO(), c.opts.Pod, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
+		c.opts.PodSpec = res.Spec
 	}
 	return nil
 }
 
-// prep a http req
 func (c *cliSession) prepExec() (*http.Request, error) {
 	u, err := url.Parse(c.clientConf.Host)
 	if err != nil {
@@ -128,28 +118,27 @@ func (c *cliSession) prepExec() (*http.Request, error) {
 	case "http":
 		u.Scheme = "ws"
 	default:
-		return nil, fmt.Errorf("Malformed URL %s", u.String())
+		return nil, errors.New("Cannot determine websocket scheme")
 	}
 
 	u.Path = fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/exec", c.namespace, c.opts.Pod)
-	rawQuery := "stdout=true&stderr=true"
+	query := "stdout=true&stderr=true"
 	for _, c := range c.opts.Command {
-		rawQuery += "&command=" + c
+		query += "&command=" + c
 	}
 
 	if c.opts.Container != "" {
-		rawQuery += "&container=" + c.opts.Container
+		query += "&container=" + c.opts.Container
 	}
 
 	if c.opts.TTY {
-		rawQuery += "&tty=true"
-		klog.Warning("Raw terminal not supported yet, YMMV.")
+		query += "&tty=true"
 	}
 
 	if c.opts.Stdin {
-		rawQuery += "&stdin=true"
+		query += "&stdin=true"
 	}
-	u.RawQuery = rawQuery
+	u.RawQuery = query
 
 	req := &http.Request{
 		Method: http.MethodGet,
@@ -173,9 +162,24 @@ func (c *cliSession) doExec(req *http.Request) error {
 		Subprotocols:    protocols,
 	}
 
+	initState := &TerminalState{}
+	if c.opts.TTY {
+		fd := os.Stdin.Fd()
+		if term.IsTerminal(fd) {
+			initState.Fd = fd
+			initState.StateBlob, err = term.SetRawTerminal(initState.Fd)
+			if err != nil {
+				return err
+			}
+			defer term.RestoreTerminal(initState.Fd, initState.StateBlob)
+		}
+	}
+
 	rt := &WebsocketRoundTripper{
-		Callback: WsCallback,
-		Dialer:   dialer,
+		Callback:  WsCallbackWrapper,
+		Dialer:    dialer,
+		TermState: initState,
+		opts:      c.opts,
 	}
 
 	rter, err := rest.HTTPWrappersForConfig(c.clientConf, rt)
@@ -187,112 +191,6 @@ func (c *cliSession) doExec(req *http.Request) error {
 	if err != nil {
 		return err
 
-	}
-	return nil
-}
-
-func (d *WebsocketRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
-	conn, resp, err := d.Dialer.Dial(r.URL.String(), r.Header)
-	if e, ok := err.(*net.OpError); ok {
-		return nil, fmt.Errorf("Error connecting to %s, %s", e.Addr, e.Err)
-	} else if err != nil {
-		return nil, err
-	} else if resp.StatusCode != 101 {
-		var msg ApiServerError
-		err := json.NewDecoder(resp.Body).Decode(&msg)
-		if err != nil {
-			return nil, errors.New("Error from server, unable to decode response")
-		}
-		return nil, fmt.Errorf("Error from server (%s): %s", msg.Reason, msg.Message)
-	}
-	defer conn.Close()
-	return resp, d.Callback(conn)
-}
-
-func WsCallback(ws *websocket.Conn) error {
-	errChan := make(chan error, 3)
-	var sendBuffer bytes.Buffer
-
-	wg := sync.WaitGroup{}
-	wg.Add(2)
-
-	// send
-	go func() {
-		defer wg.Done()
-		buf := make([]byte, 1025)
-		for {
-			n, err := os.Stdin.Read(buf[1:])
-			if err != nil {
-				errChan <- err
-				return
-			}
-
-			sendBuffer.Write(buf[1:n])
-			sendBuffer.Write([]byte{13, 10})
-			err = ws.WriteMessage(websocket.BinaryMessage, buf[:n+1])
-			if err != nil {
-				errChan <- err
-				return
-			}
-		}
-	}()
-
-	// recv
-	go func() {
-		defer wg.Done()
-		for {
-			msgType, buf, err := ws.ReadMessage()
-			if err != nil {
-				errChan <- err
-				return
-			}
-			if msgType != websocket.BinaryMessage {
-				errChan <- errors.New("Received unexpected websocket message")
-				return
-			}
-
-			if len(buf) > 1 {
-				var w io.Writer
-				switch buf[0] {
-				case stdout:
-					w = os.Stdout
-				case stderr:
-					w = os.Stderr
-				}
-
-				if w == nil {
-					continue
-				}
-
-				// ash terminal hack
-				b := bytes.Replace(buf[1:], []byte("\x1b\x5b\x36\x6e"), []byte(""), -1)
-				out := bytes.Replace(b, sendBuffer.Bytes(), []byte(""), -1)
-
-				_, err = w.Write(out)
-				if err != nil {
-					errChan <- err
-					return
-				}
-			}
-			sendBuffer.Reset()
-		}
-	}()
-
-	go func() {
-		wg.Wait()
-		close(errChan)
-	}()
-
-	for err := range errChan {
-		if e, ok := err.(*websocket.CloseError); ok {
-			klog.V(4).Infof("Closing websocket connection with error code %d, err: %s", e.Code, err)
-		}
-		if websocket.IsCloseError(err, websocket.CloseNormalClosure) {
-			return nil
-		} else if errors.Is(err, io.EOF) {
-			return nil
-		}
-		return err
 	}
 	return nil
 }
