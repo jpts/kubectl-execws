@@ -2,12 +2,10 @@
 
 A replacement for "kubectl exec" that works over WebSocket connections.
 
-The Kubernetes API server has support for exec over WebSockets, but it has yet to land in kubectl. Although [some](https://github.com/kubernetes/kubernetes/issues/89163) [proposals](https://github.com/kubernetes/enhancements/pull/3401) exist to add the functionality, they seem is quite far away from landing. This plugin is designed to be a stopgap until they do.
+The Kubernetes API server has support for exec over WebSockets, but it has yet to land in kubectl. Although [some](https://github.com/kubernetes/kubernetes/issues/89163) [proposals](https://github.com/kubernetes/enhancements/pull/3401) exist to add the functionality, they seem quite far away from landing. This plugin is designed to be a stopgap until they do.
 
 Usage:
 ```
-A replacement for "kubectl exec" that works over WebSocket connections.
-
 Usage:
   execws <pod name> [options] <cmd>
 
