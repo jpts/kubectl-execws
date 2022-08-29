@@ -5,8 +5,6 @@ def alter_context(context):
     context['tag'] = os.environ['GITHUB_REF_NAME']
     return context
 
-
-
 def extra_filters():
     """ Declare some custom filters.
         Returns: dict(name = function)

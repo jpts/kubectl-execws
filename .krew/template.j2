@@ -12,11 +12,12 @@ spec:
     bypassess the apiserver by design.
   platforms:
   {% for bin in bins -%}
+  {% set tarball = ("kubectl-execws_" ~ tag ~ "_" ~ bin.os ~ "_" ~ bin.arch) -%}
   - selector:
       matchLabels:
         os: {{ bin.os }}
         arch: {{ bin.arch }}
-    uri: "https://github.com/jpts/kubectl-execws/releases/download/{{ tag }}/kubectl-execws_{{ tag }}_{{ bin.os }}_{{ bin.arch }}.tar.gz"
-    sha256: {{ (bin.os ~ "_" ~ bin.arch) |sha256 }}
+    uri: "https://github.com/jpts/kubectl-execws/releases/download/{{ tag }}/{{ tarball }}{% if bin.arch == "arm" %}v6{% endif %}.tar.gz"
+    sha256: {{ tarball | sha256 }}
     bin: kubectl-execws
   {% endfor %}

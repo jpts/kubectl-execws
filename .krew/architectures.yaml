@@ -4,9 +4,7 @@ bins:
   - os: linux
     arch: arm64
   - os: linux
-    arch: armv7
-  - os: linux
-    arch: armv6
+    arch: arm
   - os: darwin
     arch: amd64
   - os: darwin
