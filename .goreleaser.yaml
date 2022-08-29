@@ -1,8 +1,10 @@
+project_name: kubectl-execws
 before:
   hooks:
     - go mod tidy
 builds:
-  - env:
+  - id: kubectl-execws
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
@@ -13,6 +15,11 @@ builds:
       - arm
       - arm64
     goarm: [6, 7]
+archives:
+  - builds:
+      - kubectl-execws
+    name_template: "{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    wrap_in_directory: false
 checksum:
   name_template: 'checksums.txt'
   algorithm: sha256
