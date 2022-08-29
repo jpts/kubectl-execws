@@ -1,0 +1,22 @@
+apiVersion: krew.googlecontainertools.github.com/v1alpha2
+kind: Plugin
+metadata:
+  name: execws
+spec:
+  homepage: https://github.com/jpts/kubectl-execws
+  shortDescription: kubectl exec using WebSockets
+  version: {{ tag }}
+  description: A replacement for "kubectl exec" that works over WebSocket connections.
+  caveats: |
+    Node direct-exec functionality requires connection to the kubelet API to work, since it
+    bypassess the apiserver by design.
+  platforms:
+  {% for bin in bins -%}
+  - selector:
+      matchLabels:
+        os: {{ bin.os }}
+        arch: {{ bin.arch }}
+    uri: "https://github.com/jpts/kubectl-execws/releases/download/{{ tag }}/kubectl-execws_{{ tag }}_{{ bin.os }}_{{ bin.arch }}.tar.gz"
+    sha256: {{ (bin.os ~ "_" ~ bin.arch) |sha256 }}
+    bin: kubectl-execws
+  {% endfor %}

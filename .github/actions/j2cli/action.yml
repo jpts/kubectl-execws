@@ -1,0 +1,21 @@
+name: 'j2cli'
+description: 'Jinja2 wrapper for templating'
+inputs:
+  template:
+    required: true
+  datafile:
+    required: false
+  customize:
+    required: false
+  outfile:
+    required: true
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.template }}
+    - ${{ inputs.datafile }}
+    - --custom
+    - ${{ inputs.custom }}
+    - -o
+    - ${{ inputs.outfile }}
