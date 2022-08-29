@@ -37,7 +37,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build krew template
-        uses: jpts/kubectl-execws/.github/actions/j2cli@main
+        uses: jpts/kubectl-execws/.github/actions/j2cli@master
         with:
           template: .krew/template.j2
           datafile: .krew/architectures.yaml
