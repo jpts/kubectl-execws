@@ -115,6 +115,11 @@ func (d *WebsocketRoundTripper) WsCallback(ws *websocket.Conn) error {
 					w = os.Stdout
 				case streamStdErr:
 					w = os.Stderr
+				case streamErr:
+					w = os.Stderr
+				default:
+					errChan <- errors.New("Unknown stream type")
+					continue
 				}
 
 				if w == nil {
