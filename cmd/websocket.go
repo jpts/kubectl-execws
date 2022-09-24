@@ -3,9 +3,9 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/moby/term"
+	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
 )
 
@@ -48,15 +49,23 @@ func (d *WebsocketRoundTripper) RoundTrip(r *http.Request) (*http.Response, erro
 	conn, resp, err := d.Dialer.Dial(r.URL.String(), r.Header)
 	if e, ok := err.(*net.OpError); ok {
 		return nil, fmt.Errorf("Error connecting to %s, %s", e.Addr, e.Err)
-	} else if err != nil {
-		return nil, err
-	} else if resp.StatusCode != 101 {
-		var msg ApiServerError
-		err := json.NewDecoder(resp.Body).Decode(&msg)
-		if err != nil {
-			return nil, errors.New("Error from server, unable to decode response")
+	} else if err != nil || resp.StatusCode != 101 {
+		if resp.Header.Get("Content-Type") == "application/json" {
+			var msg ApiServerError
+			jerr := json.NewDecoder(resp.Body).Decode(&msg)
+			if jerr != nil {
+				return nil, errors.Wrap(err, "Error from server, unable to decode response")
+			}
+			return nil, fmt.Errorf("Error from server (%s): %s", msg.Reason, msg.Message)
+		} else {
+			body, ioerr := ioutil.ReadAll(resp.Body)
+			if ioerr != nil {
+				return nil, errors.Wrap(err, "Server Error, unabled to decode body")
+			}
+			resp.Body.Close()
+
+			return nil, fmt.Errorf("Error from server: %s", body)
 		}
-		return nil, fmt.Errorf("Error from server (%s): %s", msg.Reason, msg.Message)
 	}
 	defer conn.Close()
 	return resp, d.Callback(d, conn)
@@ -118,7 +127,7 @@ func (d *WebsocketRoundTripper) WsCallback(ws *websocket.Conn) error {
 				case streamErr:
 					w = os.Stderr
 				default:
-					errChan <- errors.New("Unknown stream type")
+					errChan <- fmt.Errorf("Unknown stream type: %d", buf[0])
 					continue
 				}
 
