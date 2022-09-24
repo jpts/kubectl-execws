@@ -55,19 +55,22 @@ func (c *cliSession) prepKubeletExec() (*http.Request, error) {
 	}
 
 	u.Path = fmt.Sprintf("/exec/%s/%s/%s", c.namespace, c.opts.Pod, ctrName)
-	query := "output=1&error=1"
+	query := url.Values{}
+	query.Add("output", "1")
+	query.Add("error", "1")
+
 	for _, c := range c.opts.Command {
-		query += "&command=" + c
+		query.Add("command", c)
 	}
 
 	if c.opts.TTY {
-		query += "&tty=1"
+		query.Add("tty", "1")
 	}
 
 	if c.opts.Stdin {
-		query += "&input=1"
+		query.Add("input", "1")
 	}
-	u.RawQuery = query
+	u.RawQuery = query.Encode()
 
 	req := &http.Request{
 		Method: http.MethodGet,

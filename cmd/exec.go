@@ -122,23 +122,26 @@ func (c *cliSession) prepExec() (*http.Request, error) {
 	}
 
 	u.Path = fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/exec", c.namespace, c.opts.Pod)
-	query := "stdout=true&stderr=true"
+	query := url.Values{}
+	query.Add("stdout", "true")
+	query.Add("stderr", "true")
+
 	for _, c := range c.opts.Command {
-		query += "&command=" + c
+		query.Add("command", c)
 	}
 
 	if c.opts.Container != "" {
-		query += "&container=" + c.opts.Container
+		query.Add("container", c.opts.Container)
 	}
 
 	if c.opts.TTY {
-		query += "&tty=true"
+		query.Add("tty", "true")
 	}
 
 	if c.opts.Stdin {
-		query += "&stdin=true"
+		query.Add("stdin", "true")
 	}
-	u.RawQuery = query
+	u.RawQuery = query.Encode()
 
 	req := &http.Request{
 		Method: http.MethodGet,
