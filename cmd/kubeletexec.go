@@ -47,12 +47,8 @@ func (c *cliSession) prepKubeletExec() (*http.Request, error) {
 	var ctrName string
 	if c.opts.Container != "" {
 		ctrName = c.opts.Container
-	} else if len(c.opts.PodSpec.Containers) != 0 {
-		spec := c.opts.PodSpec
-		ctrCount := len(spec.Containers) + len(spec.InitContainers) + len(spec.EphemeralContainers)
-		if ctrCount == 1 && len(spec.Containers) == 1 {
-			ctrName = spec.Containers[0].Name
-		}
+	} else if len(c.opts.PodSpec.Containers) == 1 {
+		ctrName = c.opts.PodSpec.Containers[0].Name
 		klog.V(4).Infof("Discovered container name: %s", ctrName)
 	} else {
 		return nil, errors.New("Cannot determine container name")
