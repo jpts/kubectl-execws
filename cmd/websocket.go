@@ -110,7 +110,7 @@ func (d *WebsocketRoundTripper) WsCallback(ws *websocket.Conn) error {
 						return
 					}
 				default:
-					errChan <- fmt.Errorf("Unknown stream type: %d", buf[0])
+					errChan <- fmt.Errorf("Unknown stream type: %d", stream)
 					continue
 				}
 
