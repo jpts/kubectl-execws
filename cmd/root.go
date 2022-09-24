@@ -30,7 +30,7 @@ var rootCmd = &cobra.Command{
 	Use:           "execws <pod name> [options] -- <cmd>",
 	Short:         "kubectl exec over WebSockets",
 	Long:          `A replacement for "kubectl exec" that works over WebSocket connections.`,
-	Args:          cobra.MinimumNArgs(2),
+	Args:          cobra.MinimumNArgs(1),
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -50,6 +50,14 @@ var rootCmd = &cobra.Command{
 
 		if object != "pod" {
 			return errors.New("Non pod object not yet supported")
+		}
+
+		if len(command) == 0 {
+			if tty {
+				command = []string{"sh", "-c", "exec $(command -v bash || command -v ash || command -v sh)"}
+			} else {
+				return errors.New("Please specify a command")
+			}
 		}
 
 		s := &cliSession{
