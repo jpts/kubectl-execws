@@ -25,6 +25,7 @@ var (
 	noTLSVerify      bool
 	directExec       bool
 	directExecNodeIp string
+	base64SubProto   bool
 )
 
 var rootCmd = &cobra.Command{
@@ -75,6 +76,7 @@ var rootCmd = &cobra.Command{
 				noTLSVerify:      noTLSVerify,
 				directExec:       directExec,
 				directExecNodeIp: directExecNodeIp,
+				base64SubProto:   base64SubProto,
 			},
 		}
 
@@ -136,4 +138,5 @@ func init() {
 	rootCmd.Flags().BoolVar(&noSanityCheck, "no-sanity-check", false, "Don't make preflight request to ensure pod exists")
 	rootCmd.Flags().BoolVar(&directExec, "node-direct-exec", false, "Partially bypass the API server, by using the kubelet API")
 	rootCmd.Flags().StringVar(&directExecNodeIp, "node-direct-exec-ip", "", "Node IP to use with direct-exec feature")
+	rootCmd.Flags().BoolVar(&base64SubProto, "base64", false, "Use base64 subprotocol by default")
 }

@@ -30,13 +30,18 @@ type Options struct {
 	noTLSVerify      bool
 	directExec       bool
 	directExecNodeIp string
+	base64SubProto   bool
 }
 
-var protocols = []string{
-	"v4.channel.k8s.io",
-	"v3.channel.k8s.io",
-	"v2.channel.k8s.io",
-	"channel.k8s.io",
+// https://github.com/kubernetes/kubernetes/blob/a488f4b95c7ad5e94d90a63a21db3a21d3792f39/staging/src/k8s.io/apiserver/pkg/util/wsstream/conn.go#L34
+const (
+	ChannelWebSocketProtocol       = "channel.k8s.io"
+	Base64ChannelWebSocketProtocol = "base64.channel.k8s.io"
+)
+
+var execSubProtocols = []string{
+	ChannelWebSocketProtocol,
+	Base64ChannelWebSocketProtocol,
 }
 
 // https://github.com/kubernetes/kubernetes/blob/1a2f167d399b046bea6192df9e9b1ca7ac4f2365/staging/src/k8s.io/client-go/tools/remotecommand/remotecommand_websocket.go#L35
@@ -160,10 +165,14 @@ func (c *cliSession) doExec(req *http.Request) error {
 		return err
 	}
 
+	if c.opts.base64SubProto {
+		execSubProtocols = []string{Base64ChannelWebSocketProtocol}
+	}
+
 	dialer := &websocket.Dialer{
 		Proxy:           http.ProxyFromEnvironment,
 		TLSClientConfig: tlsConfig,
-		Subprotocols:    protocols,
+		Subprotocols:    execSubProtocols,
 	}
 
 	initState := &TerminalState{}

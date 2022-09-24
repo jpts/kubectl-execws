@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -93,13 +94,32 @@ func (d *WebsocketRoundTripper) WsCallback(ws *websocket.Conn) error {
 				errChan <- err
 				return
 			}
-			if msgType != websocket.BinaryMessage {
-				errChan <- errors.New("Received unexpected websocket message")
+
+			var stream uint64
+			var contents []byte
+
+			switch msgType {
+			case websocket.BinaryMessage:
+				stream = uint64(buf[0])
+				contents = buf[1:]
+			case websocket.TextMessage:
+				raw := make([]byte, len(buf))
+				_, err = base64.StdEncoding.Decode(buf[1:], raw)
+				if err != nil {
+					errChan <- err
+					return
+				}
+				stream, err = strconv.ParseUint(string(buf[0]), 10, 16)
+				contents = raw[1:]
+
+			default:
+				errChan <- fmt.Errorf("Received unexpected websocket message: type %d", msgType)
 				return
 			}
-			if len(buf) > 1 {
+
+			if len(contents) > 0 {
 				var w io.Writer
-				switch buf[0] {
+				switch stream {
 				case streamStdOut:
 					w = stdOut
 				case streamStdErr:
@@ -118,8 +138,7 @@ func (d *WebsocketRoundTripper) WsCallback(ws *websocket.Conn) error {
 					continue
 				}
 
-				out := buf[1:]
-				_, err = w.Write(out)
+				_, err = w.Write(contents)
 				if err != nil {
 					errChan <- err
 					return
