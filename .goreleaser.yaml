@@ -14,7 +14,8 @@ builds:
       - amd64
       - arm
       - arm64
-    goarm: 6
+    goarm:
+      - 6
 archives:
   - builds:
       - kubectl-execws
