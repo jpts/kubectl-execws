@@ -146,6 +146,7 @@ func (c *cliSession) prepExec() (*http.Request, error) {
 	req := &http.Request{
 		Method: http.MethodGet,
 		URL:    u,
+		Header: http.Header{},
 	}
 
 	return req, nil
