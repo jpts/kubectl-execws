@@ -143,9 +143,9 @@ func (c *cliSession) prepExec() (*http.Request, error) {
 	}
 	u.RawQuery = query.Encode()
 
-	req := &http.Request{
-		Method: http.MethodGet,
-		URL:    u,
+	req, err := http.NewRequest(http.MethodGet, u.String(), http.NoBody)
+	if err != nil {
+		return nil, err
 	}
 
 	return req, nil

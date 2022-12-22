@@ -72,9 +72,9 @@ func (c *cliSession) prepKubeletExec() (*http.Request, error) {
 	}
 	u.RawQuery = query.Encode()
 
-	req := &http.Request{
-		Method: http.MethodGet,
-		URL:    u,
+	req, err := http.NewRequest(http.MethodGet, u.String(), http.NoBody)
+	if err != nil {
+		return nil, err
 	}
 	klog.V(7).Infof("Making request to kubelet API:  %s:10250%s", ip, u.RequestURI())
 
