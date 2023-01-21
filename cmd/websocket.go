@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 
@@ -125,7 +126,10 @@ func (d *WebsocketRoundTripper) WsCallback(ws *websocket.Conn) error {
 				case streamStdErr:
 					w = os.Stderr
 				case streamErr:
-					w = os.Stderr
+					if err := parseStreamErr(buf[1:]); err != nil {
+						errChan <- err
+						return
+					}
 				default:
 					errChan <- fmt.Errorf("Unknown stream type: %d", buf[0])
 					continue
@@ -144,11 +148,6 @@ func (d *WebsocketRoundTripper) WsCallback(ws *websocket.Conn) error {
 			sendBuffer.Reset()
 		}
 	}()
-
-	// TODO: remote error
-	/*go func() {
-	    }
-	}()*/
 
 	// resize
 	go func() {
@@ -203,4 +202,39 @@ func (d *WebsocketRoundTripper) WsCallback(ws *websocket.Conn) error {
 		return err
 	}
 	return nil
+}
+
+type streamError struct {
+	Status  string             `json:"status"`
+	Message string             `json:"message"`
+	Reason  string             `json:"reason"`
+	Details streamErrorDetails `json:"details"`
+}
+
+type streamErrorDetails struct {
+	Causes []streamErrorReason `json:"causes"`
+}
+
+type streamErrorReason struct {
+	Reason  string `json:"reason"`
+	Message string `json:"message"`
+}
+
+func parseStreamErr(buf []byte) error {
+	var msg streamError
+	jerr := json.Unmarshal(buf, &msg)
+	if jerr != nil {
+		return errors.Wrap(jerr, "Error from server, unable to decode response")
+	}
+
+	if msg.Status == "Success" {
+		return nil
+	}
+
+	if msg.Status == "Failure" && msg.Reason == "NonZeroExitCode" {
+		exit, _ := strconv.Atoi(msg.Details.Causes[0].Message)
+		return fmt.Errorf("command terminated with exit code %d", exit)
+	}
+
+	return fmt.Errorf("error: %s", msg.Message)
 }
