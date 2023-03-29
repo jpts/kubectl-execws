@@ -181,7 +181,6 @@ func (c *cliSession) doExec(req *http.Request) error {
 	}
 
 	rt := &WebsocketRoundTripper{
-		Callback:  WsCallbackWrapper,
 		Dialer:    dialer,
 		TermState: initState,
 		opts:      c.opts,

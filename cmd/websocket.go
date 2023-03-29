@@ -22,12 +22,9 @@ import (
 
 type WebsocketRoundTripper struct {
 	Dialer    *websocket.Dialer
-	Callback  RoundTripCallback
 	TermState *TerminalState
 	opts      Options
 }
-
-type RoundTripCallback func(ctx *WebsocketRoundTripper, conn *websocket.Conn) error
 
 type ApiServerError struct {
 	Reason  string `json:"reason"`
@@ -61,7 +58,7 @@ func (d *WebsocketRoundTripper) RoundTrip(r *http.Request) (*http.Response, erro
 		} else {
 			body, ioerr := ioutil.ReadAll(resp.Body)
 			if ioerr != nil {
-				return nil, errors.Wrap(err, "Server Error, unabled to decode body")
+				return nil, errors.Wrap(err, "Server Error, unable to read body")
 			}
 			resp.Body.Close()
 
@@ -69,11 +66,7 @@ func (d *WebsocketRoundTripper) RoundTrip(r *http.Request) (*http.Response, erro
 		}
 	}
 	defer conn.Close()
-	return resp, d.Callback(d, conn)
-}
-
-func WsCallbackWrapper(d *WebsocketRoundTripper, ws *websocket.Conn) error {
-	return d.WsCallback(ws)
+	return resp, d.WsCallback(conn)
 }
 
 func (d *WebsocketRoundTripper) WsCallback(ws *websocket.Conn) error {
