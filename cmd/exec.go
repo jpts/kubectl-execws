@@ -91,6 +91,8 @@ func (c *cliSession) prepConfig() error {
 		c.clientConf.TLSClientConfig.CAData = []byte("")
 	}
 
+	c.clientConf.UserAgent = fmt.Sprintf("kubectl-execws/%s", releaseVersion)
+
 	if !c.opts.noSanityCheck {
 		client, err := kubernetes.NewForConfig(c.clientConf)
 		if err != nil {

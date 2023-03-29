@@ -13,6 +13,7 @@ import (
 )
 
 var (
+	releaseVersion   string
 	kconfig          string
 	tty              bool
 	stdinFlag        bool
