@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 
 	"github.com/gorilla/websocket"
 	"github.com/moby/term"
@@ -154,7 +153,7 @@ func (c *cliSession) prepExec() (*http.Request, error) {
 
 }
 
-//req -> ws callback
+// req -> ws callback
 func (c *cliSession) doExec(req *http.Request) error {
 	tlsConfig, err := rest.TLSConfigFor(c.clientConf)
 	if err != nil {
@@ -169,14 +168,17 @@ func (c *cliSession) doExec(req *http.Request) error {
 
 	initState := &TerminalState{}
 	if c.opts.TTY {
-		fd := os.Stdin.Fd()
-		if term.IsTerminal(fd) {
-			initState.Fd = fd
-			initState.StateBlob, err = term.SetRawTerminal(initState.Fd)
+		stdIn, stdOut, _ := term.StdStreams()
+		stdInFd, isTerm := term.GetFdInfo(stdIn)
+		stdOutFd, _ := term.GetFdInfo(stdOut)
+		if isTerm {
+			initState.StdInFd = stdInFd
+			initState.StdOutFd = stdOutFd
+			initState.StateBlob, err = term.SetRawTerminal(stdInFd)
 			if err != nil {
 				return err
 			}
-			defer term.RestoreTerminal(initState.Fd, initState.StateBlob)
+			defer term.RestoreTerminal(stdInFd, initState.StateBlob)
 		}
 	}
 

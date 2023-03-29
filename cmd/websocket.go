@@ -8,11 +8,8 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"os"
-	"os/signal"
 	"strconv"
 	"sync"
-	"syscall"
 
 	"github.com/gorilla/websocket"
 	"github.com/moby/term"
@@ -29,18 +26,6 @@ type WebsocketRoundTripper struct {
 type ApiServerError struct {
 	Reason  string `json:"reason"`
 	Message string `json:"message"`
-}
-
-type TerminalState struct {
-	Size        TerminalSize
-	Fd          uintptr
-	StateBlob   *term.State
-	Initialised bool
-}
-
-type TerminalSize struct {
-	Width  int `json:"Width"`
-	Height int `json:"Height"`
 }
 
 func (d *WebsocketRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
@@ -76,12 +61,14 @@ func (d *WebsocketRoundTripper) WsCallback(ws *websocket.Conn) error {
 	wg := sync.WaitGroup{}
 	wg.Add(3)
 
+	stdIn, stdOut, stdErr := term.StdStreams()
+
 	// send
 	go func() {
 		defer wg.Done()
 		buf := make([]byte, 1025)
 		for {
-			n, err := os.Stdin.Read(buf[1:])
+			n, err := stdIn.Read(buf[1:])
 			if err != nil {
 				errChan <- err
 				return
@@ -110,14 +97,13 @@ func (d *WebsocketRoundTripper) WsCallback(ws *websocket.Conn) error {
 				errChan <- errors.New("Received unexpected websocket message")
 				return
 			}
-
 			if len(buf) > 1 {
 				var w io.Writer
 				switch buf[0] {
 				case streamStdOut:
-					w = os.Stdout
+					w = stdOut
 				case streamStdErr:
-					w = os.Stderr
+					w = stdErr
 				case streamErr:
 					if err := parseStreamErr(buf[1:]); err != nil {
 						errChan <- err
@@ -147,34 +133,33 @@ func (d *WebsocketRoundTripper) WsCallback(ws *websocket.Conn) error {
 	go func() {
 		defer wg.Done()
 		if d.opts.TTY {
-			resizeNotify := make(chan os.Signal, 1)
-			signal.Notify(resizeNotify, syscall.SIGWINCH)
+			resizeNotify := registerResizeSignal()
 
 			d.TermState.Initialised = false
 			for {
 				changed, err := updateSize(d.TermState)
 				if err != nil {
-					errChan <- err
+					errChan <- fmt.Errorf("Failed to update terminal size: %w", err)
 					return
 				}
 
 				if changed || !d.TermState.Initialised {
 					res, err := json.Marshal(d.TermState.Size)
 					if err != nil {
-						errChan <- err
+						errChan <- fmt.Errorf("Failed to marshal JSON: %w", err)
 						return
 					}
 					msg := []byte(fmt.Sprintf("%s%s", "\x04", res))
 
 					err = ws.WriteMessage(websocket.BinaryMessage, msg)
 					if err != nil {
-						errChan <- err
+						errChan <- fmt.Errorf("Failed to write msg to channel: %w", err)
 						return
 					}
 					d.TermState.Initialised = true
 				}
 
-				_ = <-resizeNotify
+				waitForResizeChange(resizeNotify)
 			}
 		}
 	}()
