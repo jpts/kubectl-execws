@@ -139,7 +139,8 @@ func (d *WebsocketRoundTripper) WsCallback(ws *websocket.Conn) error {
 					continue
 				}
 
-				_, err = w.Write(buf)
+				out := buf[1:]
+				_, err = w.Write(out)
 				if err != nil {
 					errChan <- err
 					return
