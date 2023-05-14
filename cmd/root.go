@@ -61,21 +61,23 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
-		s := &cliSession{
-			opts: Options{
-				Command:          command,
-				Container:        container,
-				Kconfig:          kconfig,
-				Namespace:        namespace,
-				Object:           object,
-				Pod:              pod,
-				Stdin:            stdinFlag,
-				TTY:              tty,
-				noSanityCheck:    noSanityCheck,
-				noTLSVerify:      noTLSVerify,
-				directExec:       directExec,
-				directExecNodeIp: directExecNodeIp,
-			},
+		opts := Options{
+			Command:          command,
+			Container:        container,
+			Kconfig:          kconfig,
+			Namespace:        namespace,
+			Object:           object,
+			Pod:              pod,
+			Stdin:            stdinFlag,
+			TTY:              tty,
+			noSanityCheck:    noSanityCheck,
+			noTLSVerify:      noTLSVerify,
+			directExec:       directExec,
+			directExecNodeIp: directExecNodeIp,
+		}
+		s, err := NewCliSession(&opts)
+		if err != nil {
+			return err
 		}
 
 		if s.opts.noSanityCheck && s.opts.directExec {
@@ -91,10 +93,7 @@ var rootCmd = &cobra.Command{
 		flag.Set("v", fmt.Sprint(loglevel))
 		flag.Set("stderrthreshold", fmt.Sprint(loglevel))
 
-		err := s.prepConfig()
-		if err != nil {
-			return err
-		}
+		s.sanityCheck()
 
 		var req *http.Request
 		if s.opts.directExec {

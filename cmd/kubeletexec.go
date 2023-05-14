@@ -8,7 +8,6 @@ import (
 	"net/url"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 )
 
@@ -19,12 +18,7 @@ func (c *cliSession) getNodeIP() (string, error) {
 		return c.opts.directExecNodeIp, nil
 	}
 
-	client, err := kubernetes.NewForConfig(c.clientConf)
-	if err != nil {
-		return "", err
-	}
-
-	res, err := client.CoreV1().Nodes().Get(context.TODO(), c.opts.PodSpec.NodeName, metav1.GetOptions{})
+	res, err := c.k8sClient.CoreV1().Nodes().Get(context.TODO(), c.opts.PodSpec.NodeName, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}

@@ -51,7 +51,26 @@ const (
 type cliSession struct {
 	opts       Options
 	clientConf *rest.Config
+	k8sClient  *kubernetes.Clientset
 	namespace  string
+}
+
+func NewCliSession(o *Options) (*cliSession, error) {
+	c := &cliSession{
+		opts: *o,
+	}
+
+	err := c.prepConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	c.k8sClient, err = kubernetes.NewForConfig(c.clientConf)
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
 }
 
 // prep the session
@@ -92,13 +111,12 @@ func (c *cliSession) prepConfig() error {
 
 	c.clientConf.UserAgent = fmt.Sprintf("kubectl-execws/%s", releaseVersion)
 
-	if !c.opts.noSanityCheck {
-		client, err := kubernetes.NewForConfig(c.clientConf)
-		if err != nil {
-			return err
-		}
+	return nil
+}
 
-		res, err := client.CoreV1().Pods(c.namespace).Get(context.TODO(), c.opts.Pod, metav1.GetOptions{})
+func (c *cliSession) sanityCheck() error {
+	if !c.opts.noSanityCheck {
+		res, err := c.k8sClient.CoreV1().Pods(c.namespace).Get(context.TODO(), c.opts.Pod, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
