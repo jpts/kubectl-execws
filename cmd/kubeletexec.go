@@ -12,34 +12,43 @@ import (
 	"k8s.io/klog/v2"
 )
 
-func (c *cliSession) prepKubeletExec() (*http.Request, error) {
+func (c *cliSession) getNodeIP() (string, error) {
 	var ip string
+
 	if c.opts.directExecNodeIp != "" {
-		ip = c.opts.directExecNodeIp
-	} else {
+		return c.opts.directExecNodeIp, nil
+	}
 
-		client, err := kubernetes.NewForConfig(c.clientConf)
-		if err != nil {
-			return nil, err
-		}
+	client, err := kubernetes.NewForConfig(c.clientConf)
+	if err != nil {
+		return "", err
+	}
 
-		res, err := client.CoreV1().Nodes().Get(context.TODO(), c.opts.PodSpec.NodeName, metav1.GetOptions{})
-		if err != nil {
-			return nil, err
-		}
+	res, err := client.CoreV1().Nodes().Get(context.TODO(), c.opts.PodSpec.NodeName, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
 
-		for _, addr := range res.Status.Addresses {
-			if addr.Type == "InternalIP" {
-				ip = addr.Address
-			}
-		}
-
-		if ip == "" {
-			return nil, errors.New("Unable to find Node IP")
+	for _, addr := range res.Status.Addresses {
+		if addr.Type == "InternalIP" {
+			ip = addr.Address
 		}
 	}
 
-	u, err := url.Parse(fmt.Sprintf("wss://%s:10250", ip))
+	if ip == "" {
+		return "", errors.New("Unable to find Node IP")
+	}
+
+	return ip, nil
+}
+
+func (c *cliSession) prepKubeletExec() (*http.Request, error) {
+	nodeIP, err := c.getNodeIP()
+	if err != nil {
+		return nil, err
+	}
+
+	u, err := url.Parse(fmt.Sprintf("wss://%s:10250", nodeIP))
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +85,7 @@ func (c *cliSession) prepKubeletExec() (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
-	klog.V(7).Infof("Making request to kubelet API:  %s:10250%s", ip, u.RequestURI())
+	klog.V(7).Infof("Making request to kubelet API:  %s:10250%s", nodeIP, u.RequestURI())
 
 	return req, nil
 
