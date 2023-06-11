@@ -8,6 +8,8 @@ builds:
       - CGO_ENABLED=0
     ldflags:
       - -s -w -X github.com/jpts/kubectl-execws/cmd.releaseVersion={{.Version}}
+    flags:
+      - -trimpath
     goos:
       - linux
       - darwin
