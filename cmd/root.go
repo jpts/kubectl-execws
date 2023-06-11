@@ -87,7 +87,7 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
-		// propogate logging flags
+		// propagate logging flags
 		flag.Set("v", fmt.Sprint(loglevel))
 		flag.Set("stderrthreshold", fmt.Sprint(loglevel))
 
