@@ -18,9 +18,10 @@ import (
 )
 
 type WebsocketRoundTripper struct {
-	Dialer    *websocket.Dialer
-	TermState *TerminalState
-	opts      Options
+	Dialer     *websocket.Dialer
+	TermState  *TerminalState
+	opts       Options
+	SendBuffer bytes.Buffer
 }
 
 type ApiServerError struct {
@@ -56,113 +57,13 @@ func (d *WebsocketRoundTripper) RoundTrip(r *http.Request) (*http.Response, erro
 
 func (d *WebsocketRoundTripper) WsCallback(ws *websocket.Conn) error {
 	errChan := make(chan error, 4)
-	var sendBuffer bytes.Buffer
 
 	wg := sync.WaitGroup{}
 	wg.Add(3)
 
-	stdIn, stdOut, stdErr := term.StdStreams()
-
-	// send
-	go func() {
-		defer wg.Done()
-		buf := make([]byte, 1025)
-		for {
-			n, err := stdIn.Read(buf[1:])
-			if err != nil {
-				errChan <- err
-				return
-			}
-
-			sendBuffer.Write(buf[1:n])
-			sendBuffer.Write([]byte{13, 10})
-			err = ws.WriteMessage(websocket.BinaryMessage, buf[:n+1])
-			if err != nil {
-				errChan <- err
-				return
-			}
-		}
-	}()
-
-	// recv
-	go func() {
-		defer wg.Done()
-		for {
-			msgType, buf, err := ws.ReadMessage()
-			if err != nil {
-				errChan <- err
-				return
-			}
-			if msgType != websocket.BinaryMessage {
-				errChan <- errors.New("Received unexpected websocket message")
-				return
-			}
-			if len(buf) > 1 {
-				var w io.Writer
-				switch buf[0] {
-				case streamStdOut:
-					w = stdOut
-				case streamStdErr:
-					w = stdErr
-				case streamErr:
-					if err := parseStreamErr(buf[1:]); err != nil {
-						errChan <- err
-						return
-					}
-				default:
-					errChan <- fmt.Errorf("Unknown stream type: %d", buf[0])
-					continue
-				}
-
-				if w == nil {
-					continue
-				}
-
-				out := buf[1:]
-				_, err = w.Write(out)
-				if err != nil {
-					errChan <- err
-					return
-				}
-			}
-			sendBuffer.Reset()
-		}
-	}()
-
-	// resize
-	go func() {
-		defer wg.Done()
-		if d.opts.TTY {
-			resizeNotify := registerResizeSignal()
-
-			d.TermState.Initialised = false
-			for {
-				changed, err := updateSize(d.TermState)
-				if err != nil {
-					errChan <- fmt.Errorf("Failed to update terminal size: %w", err)
-					return
-				}
-
-				if changed || !d.TermState.Initialised {
-					res, err := json.Marshal(d.TermState.Size)
-					if err != nil {
-						errChan <- fmt.Errorf("Failed to marshal JSON: %w", err)
-						return
-					}
-					msg := []byte(fmt.Sprintf("%s%s", "\x04", res))
-
-					err = ws.WriteMessage(websocket.BinaryMessage, msg)
-					if err != nil {
-						errChan <- fmt.Errorf("Failed to write msg to channel: %w", err)
-						return
-					}
-					d.TermState.Initialised = true
-				}
-
-				waitForResizeChange(resizeNotify)
-			}
-		}
-	}()
+	go d.concurrentSend(&wg, ws, errChan)
+	go d.concurrentRecv(&wg, ws, errChan)
+	go d.concurrentResize(&wg, ws, errChan)
 
 	go func() {
 		wg.Wait()
@@ -181,6 +82,110 @@ func (d *WebsocketRoundTripper) WsCallback(ws *websocket.Conn) error {
 		return err
 	}
 	return nil
+}
+
+func (d *WebsocketRoundTripper) concurrentSend(wg *sync.WaitGroup, ws *websocket.Conn, errChan chan error) {
+	defer wg.Done()
+
+	buf := make([]byte, 1025)
+	stdIn, _, _ := term.StdStreams()
+
+	for {
+		n, err := stdIn.Read(buf[1:])
+		if err != nil {
+			errChan <- err
+			return
+		}
+
+		d.SendBuffer.Write(buf[1:n])
+		d.SendBuffer.Write([]byte{13, 10})
+		err = ws.WriteMessage(websocket.BinaryMessage, buf[:n+1])
+		if err != nil {
+			errChan <- err
+			return
+		}
+	}
+}
+
+func (d *WebsocketRoundTripper) concurrentRecv(wg *sync.WaitGroup, ws *websocket.Conn, errChan chan error) {
+	defer wg.Done()
+
+	_, stdOut, stdErr := term.StdStreams()
+
+	for {
+		msgType, buf, err := ws.ReadMessage()
+		if err != nil {
+			errChan <- err
+			return
+		}
+		if msgType != websocket.BinaryMessage {
+			errChan <- errors.New("Received unexpected websocket message")
+			return
+		}
+		if len(buf) > 1 {
+			var w io.Writer
+			switch buf[0] {
+			case streamStdOut:
+				w = stdOut
+			case streamStdErr:
+				w = stdErr
+			case streamErr:
+				if err := parseStreamErr(buf[1:]); err != nil {
+					errChan <- err
+					return
+				}
+			default:
+				errChan <- fmt.Errorf("Unknown stream type: %d", buf[0])
+				continue
+			}
+
+			if w == nil {
+				continue
+			}
+
+			out := buf[1:]
+			_, err = w.Write(out)
+			if err != nil {
+				errChan <- err
+				return
+			}
+		}
+		d.SendBuffer.Reset()
+	}
+}
+
+func (d *WebsocketRoundTripper) concurrentResize(wg *sync.WaitGroup, ws *websocket.Conn, errChan chan error) {
+	defer wg.Done()
+	if d.opts.TTY {
+		resizeNotify := registerResizeSignal()
+
+		d.TermState.Initialised = false
+		for {
+			changed, err := updateSize(d.TermState)
+			if err != nil {
+				errChan <- fmt.Errorf("Failed to update terminal size: %w", err)
+				return
+			}
+
+			if changed || !d.TermState.Initialised {
+				res, err := json.Marshal(d.TermState.Size)
+				if err != nil {
+					errChan <- fmt.Errorf("Failed to marshal JSON: %w", err)
+					return
+				}
+				msg := []byte(fmt.Sprintf("%s%s", "\x04", res))
+
+				err = ws.WriteMessage(websocket.BinaryMessage, msg)
+				if err != nil {
+					errChan <- fmt.Errorf("Failed to write msg to channel: %w", err)
+					return
+				}
+				d.TermState.Initialised = true
+			}
+
+			waitForResizeChange(resizeNotify)
+		}
+	}
 }
 
 type streamError struct {
