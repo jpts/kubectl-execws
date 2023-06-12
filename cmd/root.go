@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/moby/term"
 	"github.com/spf13/cobra"
 	"k8s.io/klog/v2"
 )
@@ -33,14 +34,15 @@ var rootCmd = &cobra.Command{
 	Short:                 "kubectl exec over WebSockets",
 	Long:                  `A replacement for "kubectl exec" that works over WebSocket connections.`,
 	Args:                  cobra.MinimumNArgs(1),
+	Version:               releaseVersion,
 	SilenceUsage:          true,
 	SilenceErrors:         true,
-	CompletionOptions: cobra.CompletionOptions{
+	/*CompletionOptions: cobra.CompletionOptions{
 		DisableDefaultCmd:   false,
-		HiddenDefaultCmd:    false,
+		HiddenDefaultCmd:    true,
 		DisableNoDescFlag:   true,
 		DisableDescriptions: false,
-	},
+	},*/
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var object, pod string
 		var command []string
@@ -121,11 +123,12 @@ var rootCmd = &cobra.Command{
 	ValidArgsFunction: MainValidArgs,
 }
 
-/*var completionCmd = &cobra.Command{
+// add our own explicit completion helper
+var completionCmd = &cobra.Command{
 	Use:                   "completion [bash|zsh|fish|powershell]",
 	DisableFlagsInUseLine: true,
 	Short:                 "Generate completion script",
-	Long:                  fmt.Sprintf(`To load completions: %s`, rootCmd.Root().Name()),
+	Long:                  fmt.Sprintf(`Generate the autocompletion script for %[1]s for the specified shell.`, rootCmd.Root().Name()),
 	ValidArgs:             []string{"bash", "zsh", "fish", "powershell"},
 	Args:                  cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 	Hidden:                true,
@@ -133,7 +136,7 @@ var rootCmd = &cobra.Command{
 		_, stdOut, _ := term.StdStreams()
 		switch args[0] {
 		case "bash":
-			cmd.Root().GenBashCompletion(stdOut)
+			cmd.Root().GenBashCompletionV2(stdOut, true)
 		case "zsh":
 			cmd.Root().GenZshCompletion(stdOut)
 		case "fish":
@@ -142,17 +145,18 @@ var rootCmd = &cobra.Command{
 			cmd.Root().GenPowerShellCompletionWithDesc(stdOut)
 		}
 	},
-}*/
+}
 
-var versionCmd = &cobra.Command{
+/*var versionCmd = &cobra.Command{
 	Use:                   "version",
 	Short:                 "Print program version",
 	DisableFlagsInUseLine: true,
+	Hidden:                true,
 	Args:                  cobra.ExactArgs(0),
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf(releaseVersion)
 	},
-}
+}*/
 
 func Execute() {
 	klog.InitFlags(nil)
@@ -187,8 +191,8 @@ func init() {
 	rootCmd.Flags().BoolVar(&directExec, "node-direct-exec", false, "Partially bypass the API server, by using the kubelet API")
 	rootCmd.Flags().StringVar(&directExecNodeIp, "node-direct-exec-ip", "", "Node IP to use with direct-exec feature")
 
-	//rootCmd.AddCommand(completionCmd)
-	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(completionCmd)
+	//rootCmd.AddCommand(versionCmd)
 	rootCmd.RegisterFlagCompletionFunc("namespace", NamespaceValidArgs)
 	rootCmd.RegisterFlagCompletionFunc("container", ContainerValidArgs)
 	rootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
