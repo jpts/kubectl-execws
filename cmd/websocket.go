@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 
@@ -21,6 +22,7 @@ type WebsocketRoundTripper struct {
 	Dialer     *websocket.Dialer
 	TermState  *TerminalState
 	SendBuffer bytes.Buffer
+	OneShot    bool
 }
 
 type ApiServerError struct {
@@ -90,6 +92,33 @@ func (d *WebsocketRoundTripper) concurrentSend(wg *sync.WaitGroup, ws *websocket
 	buf := make([]byte, 1025)
 	stdIn, _, _ := term.StdStreams()
 
+	stdInFile, ok := stdIn.(*os.File)
+	if !ok {
+		errChan <- errors.New("Error determining input type")
+		return
+	}
+
+	stat, _ := stdInFile.Stat()
+	if (stat.Mode() & os.ModeCharDevice) == 0 {
+		d.OneShot = true
+
+		bytes, err := io.ReadAll(stdIn)
+		if err != nil {
+			errChan <- err
+			return
+		}
+
+		stdin := append([]byte{streamStdIn}, bytes...)
+		klog.V(4).Infof("got stdin %s", string(stdin))
+
+		err = ws.WriteMessage(websocket.BinaryMessage, stdin)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		return
+	}
+
 	for {
 		n, err := stdIn.Read(buf[1:])
 		if err != nil {
@@ -148,6 +177,10 @@ func (d *WebsocketRoundTripper) concurrentRecv(wg *sync.WaitGroup, ws *websocket
 			if err != nil {
 				errChan <- err
 				return
+			}
+
+			if d.OneShot {
+				break
 			}
 		}
 		d.SendBuffer.Reset()
