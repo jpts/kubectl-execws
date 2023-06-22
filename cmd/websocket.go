@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/moby/term"
-	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
 )
 
@@ -38,13 +38,13 @@ func (d *WebsocketRoundTripper) RoundTrip(r *http.Request) (*http.Response, erro
 			var msg ApiServerError
 			jerr := json.NewDecoder(resp.Body).Decode(&msg)
 			if jerr != nil {
-				return nil, errors.Wrap(err, "Error from server, unable to decode response")
+				return nil, fmt.Errorf("Error from server, unable to decode response: %w", err)
 			}
 			return nil, fmt.Errorf("Error from server (%s): %s", msg.Reason, msg.Message)
 		} else {
 			body, ioerr := ioutil.ReadAll(resp.Body)
 			if ioerr != nil {
-				return nil, errors.Wrap(err, "Server Error, unable to read body")
+				return nil, fmt.Errorf("Server Error, unable to read body: %w", err)
 			}
 			resp.Body.Close()
 
@@ -208,7 +208,7 @@ func parseStreamErr(buf []byte) error {
 	var msg streamError
 	jerr := json.Unmarshal(buf, &msg)
 	if jerr != nil {
-		return errors.Wrap(jerr, "Error from server, unable to decode response")
+		return fmt.Errorf("Error from server, unable to decode response: %w", jerr)
 	}
 
 	if msg.Status == "Success" {

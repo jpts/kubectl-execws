@@ -5,7 +5,6 @@ go 1.18
 require (
 	github.com/gorilla/websocket v1.5.0
 	github.com/moby/term v0.5.0
-	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.7.0
 	k8s.io/api v0.26.4
 	k8s.io/apimachinery v0.26.4
