@@ -7,7 +7,7 @@ The Kubernetes API server has support for exec over WebSockets, but it has yet t
 Usage:
 ```
 Usage:
-  execws <pod name> [options] <cmd>
+  kubectl-execws <pod name> [options] -- <cmd>
 
 Flags:
   -c, --container string             Container name
@@ -31,6 +31,14 @@ Flags:
 * Supports a full TTY (terminal raw mode)
 * Can bypass the API server with direct connection to the nodes kubelet API
 
-### Acknowledgements
+## Tab Completion
+
+Tab completion is available for various shells `[bash|zsh|fish|powershell]`.
+
+This can be used with the standalone binary through use of the `completion` subcommand, eg. `source <(kubectl-execws completion zsh)`
+
+Completion is also available when using as a kubectl plugin. To set this up it is necessary to symlink to the multi-call binary with a special name: `ln -s kubectl-execws kubectl_complete-execws`.
+
+## Acknowledgements
 
 Work inspired by [rmohr/kubernetes-custom-exec](https://github.com/rmohr/kubernetes-custom-exec) and [kairen/websocket-exec](https://github.com/kairen/websocket-exec).
