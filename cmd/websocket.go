@@ -71,13 +71,14 @@ func (d *WebsocketRoundTripper) WsCallback(ws *websocket.Conn) error {
 	}()
 
 	for err := range errChan {
-		if e, ok := err.(*websocket.CloseError); ok {
-			klog.V(4).Infof("Closing websocket connection with error code %d, err: %s", e.Code, err)
-		}
 		if websocket.IsCloseError(err, websocket.CloseNormalClosure) {
 			return nil
 		} else if errors.Is(err, io.EOF) {
+			klog.V(4).Info("Closing websocket connection with EOF")
 			return nil
+		}
+		if e, ok := err.(*websocket.CloseError); ok {
+			klog.V(4).Infof("Closing websocket connection with error code %d, err: %s", e.Code, err)
 		}
 		return err
 	}
