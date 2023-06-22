@@ -14,6 +14,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/klog/v2"
 )
 
 type Options struct {
@@ -53,6 +54,7 @@ type cliSession struct {
 	clientConf *rest.Config
 	k8sClient  *kubernetes.Clientset
 	namespace  string
+	RawMode    bool
 }
 
 func NewCliSession(o *Options) (*cliSession, error) {
@@ -154,7 +156,12 @@ func (c *cliSession) prepExec() (*http.Request, error) {
 	}
 
 	if c.opts.TTY {
-		query.Add("tty", "true")
+		stdIn, _, _ := term.StdStreams()
+		_, c.RawMode = term.GetFdInfo(stdIn)
+		if !c.RawMode {
+			klog.V(2).Infof("Unable to use a TTY - input is not a terminal or the right kind of file")
+		}
+		query.Add("tty", fmt.Sprintf("%t", c.RawMode))
 	}
 
 	if c.opts.Stdin {
@@ -184,26 +191,25 @@ func (c *cliSession) doExec(req *http.Request) error {
 		Subprotocols:    protocols,
 	}
 
-	initState := &TerminalState{}
-	if c.opts.TTY {
+	initState := &TerminalState{
+		IsRaw: c.RawMode,
+	}
+	if c.RawMode {
 		stdIn, stdOut, _ := term.StdStreams()
-		stdInFd, isTerm := term.GetFdInfo(stdIn)
+		stdInFd, _ := term.GetFdInfo(stdIn)
 		stdOutFd, _ := term.GetFdInfo(stdOut)
-		if isTerm {
-			initState.StdInFd = stdInFd
-			initState.StdOutFd = stdOutFd
-			initState.StateBlob, err = term.SetRawTerminal(stdInFd)
-			if err != nil {
-				return err
-			}
-			defer term.RestoreTerminal(stdInFd, initState.StateBlob)
+		initState.StdInFd = stdInFd
+		initState.StdOutFd = stdOutFd
+		initState.StateBlob, err = term.SetRawTerminal(stdInFd)
+		if err != nil {
+			return err
 		}
+		defer term.RestoreTerminal(stdInFd, initState.StateBlob)
 	}
 
 	rt := &WebsocketRoundTripper{
 		Dialer:    dialer,
 		TermState: initState,
-		opts:      c.opts,
 	}
 
 	rter, err := rest.HTTPWrappersForConfig(c.clientConf, rt)

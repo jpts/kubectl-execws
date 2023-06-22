@@ -20,7 +20,6 @@ import (
 type WebsocketRoundTripper struct {
 	Dialer     *websocket.Dialer
 	TermState  *TerminalState
-	opts       Options
 	SendBuffer bytes.Buffer
 }
 
@@ -157,7 +156,7 @@ func (d *WebsocketRoundTripper) concurrentRecv(wg *sync.WaitGroup, ws *websocket
 
 func (d *WebsocketRoundTripper) concurrentResize(wg *sync.WaitGroup, ws *websocket.Conn, errChan chan error) {
 	defer wg.Done()
-	if d.opts.TTY {
+	if d.TermState.IsRaw {
 		resizeNotify := registerResizeSignal()
 
 		d.TermState.Initialised = false

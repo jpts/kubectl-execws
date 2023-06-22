@@ -12,6 +12,7 @@ type TerminalState struct {
 	StdOutFd    uintptr
 	StateBlob   *term.State
 	Initialised bool
+	IsRaw       bool
 }
 
 type TerminalSize struct {
