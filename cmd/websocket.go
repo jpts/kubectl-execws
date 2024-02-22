@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -34,7 +33,9 @@ func (d *WebsocketRoundTripper) RoundTrip(r *http.Request) (*http.Response, erro
 	conn, resp, err := d.Dialer.Dial(r.URL.String(), r.Header)
 	if e, ok := err.(*net.OpError); ok {
 		return nil, fmt.Errorf("Error connecting to %s, %s", e.Addr, e.Err)
-	} else if err != nil || resp.StatusCode != 101 {
+	} else if err != nil && err.Error() != "websocket: bad handshake" {
+		return nil, fmt.Errorf("Error connecting: %w", err)
+	} else if resp.StatusCode != 101 {
 		if resp.Header.Get("Content-Type") == "application/json" {
 			var msg ApiServerError
 			jerr := json.NewDecoder(resp.Body).Decode(&msg)
@@ -43,7 +44,7 @@ func (d *WebsocketRoundTripper) RoundTrip(r *http.Request) (*http.Response, erro
 			}
 			return nil, fmt.Errorf("Error from server (%s): %s", msg.Reason, msg.Message)
 		} else {
-			body, ioerr := ioutil.ReadAll(resp.Body)
+			body, ioerr := io.ReadAll(resp.Body)
 			if ioerr != nil {
 				return nil, fmt.Errorf("Server Error, unable to read body: %w", err)
 			}
