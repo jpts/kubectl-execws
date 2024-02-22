@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/moby/term"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 )
@@ -67,6 +68,11 @@ func (c *cliSession) prepKubeletExec() (*http.Request, error) {
 	}
 
 	if c.opts.TTY {
+		stdIn, _, _ := term.StdStreams()
+		_, c.RawMode = term.GetFdInfo(stdIn)
+		if !c.RawMode {
+			klog.V(2).Infof("Unable to use a TTY - input is not a terminal or the right kind of file")
+		}
 		query.Add("tty", "1")
 	}
 
@@ -79,7 +85,7 @@ func (c *cliSession) prepKubeletExec() (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
-	klog.V(7).Infof("Making request to kubelet API:  %s:10250%s", nodeIP, u.RequestURI())
+	klog.V(7).Infof("Making request to kubelet API: %s:10250%s", nodeIP, u.RequestURI())
 
 	return req, nil
 
