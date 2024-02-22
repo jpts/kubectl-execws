@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path"
 
 	"github.com/gorilla/websocket"
 	"github.com/moby/term"
@@ -142,7 +143,7 @@ func (c *cliSession) prepExec() (*http.Request, error) {
 		return nil, errors.New("Cannot determine websocket scheme")
 	}
 
-	u.Path = fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/exec", c.namespace, c.opts.Pod)
+	u.Path = path.Join(u.Path, fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/exec", c.namespace, c.opts.Pod))
 	query := url.Values{}
 	query.Add("stdout", "true")
 	query.Add("stderr", "true")
