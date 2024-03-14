@@ -35,8 +35,8 @@ jobs:
           args: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      #- name: Publish plugin
-      #  uses: rajatjindal/krew-release-bot@v0.0.46
-      #  with:
-      #    krew_template_file: .krew/template.yaml
+
+      - name: Publish plugin
+        uses: rajatjindal/krew-release-bot@v0.0.46
+        with:
+          krew_template_file: .krew/template.yaml
