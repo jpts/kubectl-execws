@@ -33,6 +33,7 @@ type Options struct {
 	directExecNodeIp string
 	Loglevel         int
 	Impersonate      string
+	Context          string
 }
 
 var protocols = []string{
@@ -52,11 +53,12 @@ const (
 )
 
 type cliSession struct {
-	opts       Options
-	clientConf *rest.Config
-	k8sClient  *kubernetes.Clientset
-	namespace  string
-	RawMode    bool
+	opts         Options
+	clientConfig clientcmd.ClientConfig
+	restConfig   *rest.Config
+	k8sClient    *kubernetes.Clientset
+	namespace    string
+	RawMode      bool
 }
 
 func NewCliSession(o *Options) (*cliSession, error) {
@@ -64,12 +66,17 @@ func NewCliSession(o *Options) (*cliSession, error) {
 		opts: *o,
 	}
 
-	err := c.prepConfig()
+	err := c.prepClientConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	c.k8sClient, err = kubernetes.NewForConfig(c.clientConf)
+	err = c.prepRestConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	c.k8sClient, err = kubernetes.NewForConfig(c.restConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -77,21 +84,37 @@ func NewCliSession(o *Options) (*cliSession, error) {
 	return c, nil
 }
 
-// prep the session
-func (c *cliSession) prepConfig() error {
-	var cfg clientcmd.ClientConfig
+func (c *cliSession) prepClientConfig() error {
+	var loadingRules *clientcmd.ClientConfigLoadingRules
 	switch c.opts.Kconfig {
 	case "":
-		loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-		cfg = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-			loadingRules,
-			&clientcmd.ConfigOverrides{})
+		loadingRules = clientcmd.NewDefaultClientConfigLoadingRules()
 	default:
-		cfg = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-			&clientcmd.ClientConfigLoadingRules{ExplicitPath: c.opts.Kconfig},
-			&clientcmd.ConfigOverrides{})
+		loadingRules = &clientcmd.ClientConfigLoadingRules{
+			ExplicitPath: c.opts.Kconfig,
+		}
 	}
-	cc, err := cfg.ClientConfig()
+
+	var ctxOverrides *clientcmd.ConfigOverrides
+	switch c.opts.Context {
+	case "":
+		ctxOverrides = &clientcmd.ConfigOverrides{}
+	default:
+		ctxOverrides = &clientcmd.ConfigOverrides{
+			CurrentContext: c.opts.Context,
+		}
+	}
+
+	c.clientConfig = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		loadingRules,
+		ctxOverrides,
+	)
+
+	return nil
+}
+
+func (c *cliSession) prepRestConfig() error {
+	cc, err := c.clientConfig.ClientConfig()
 	if err != nil {
 		return err
 	}
@@ -103,11 +126,11 @@ func (c *cliSession) prepConfig() error {
 		klog.V(4).Infof("Impersonating user: %s", c.opts.Impersonate)
 	}
 
-	c.clientConf = cc
+	c.restConfig = cc
 
 	switch c.opts.Namespace {
 	case "":
-		c.namespace, _, err = cfg.Namespace()
+		c.namespace, _, err = c.clientConfig.Namespace()
 		if err != nil {
 			return err
 		}
@@ -116,12 +139,12 @@ func (c *cliSession) prepConfig() error {
 	}
 
 	if c.opts.noTLSVerify {
-		c.clientConf.TLSClientConfig.Insecure = true
-		c.clientConf.TLSClientConfig.CAFile = ""
-		c.clientConf.TLSClientConfig.CAData = []byte("")
+		c.restConfig.TLSClientConfig.Insecure = true
+		c.restConfig.TLSClientConfig.CAFile = ""
+		c.restConfig.TLSClientConfig.CAData = []byte("")
 	}
 
-	c.clientConf.UserAgent = fmt.Sprintf("kubectl-execws/%s", releaseVersion)
+	c.restConfig.UserAgent = fmt.Sprintf("kubectl-execws/%s", releaseVersion)
 
 	return nil
 }
@@ -138,7 +161,7 @@ func (c *cliSession) sanityCheck() error {
 }
 
 func (c *cliSession) prepExec() (*http.Request, error) {
-	u, err := url.Parse(c.clientConf.Host)
+	u, err := url.Parse(c.restConfig.Host)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +217,7 @@ func (c *cliSession) prepExec() (*http.Request, error) {
 
 // req -> ws callback
 func (c *cliSession) doExec(req *http.Request) error {
-	tlsConfig, err := rest.TLSConfigFor(c.clientConf)
+	tlsConfig, err := rest.TLSConfigFor(c.restConfig)
 	if err != nil {
 		return err
 	}
@@ -226,7 +249,7 @@ func (c *cliSession) doExec(req *http.Request) error {
 		TermState: initState,
 	}
 
-	rter, err := rest.HTTPWrappersForConfig(c.clientConf, rt)
+	rter, err := rest.HTTPWrappersForConfig(c.restConfig, rt)
 	if err != nil {
 		return err
 	}

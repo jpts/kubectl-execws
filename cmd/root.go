@@ -163,6 +163,7 @@ func init() {
 	rootCmd.PersistentFlags().IntVarP(&cliopts.Loglevel, "loglevel", "v", 2, "Set loglevel")
 	rootCmd.PersistentFlags().BoolVarP(&cliopts.noTLSVerify, "skip-tls-verify", "k", false, "Don't perform TLS certificate verifiation")
 	rootCmd.PersistentFlags().StringVar(&cliopts.Impersonate, "as", "", "Impersonate another user")
+	rootCmd.PersistentFlags().StringVar(&cliopts.Context, "context", "", "Use specific kubeconfig ctx")
 
 	rootCmd.Flags().BoolVarP(&cliopts.TTY, "tty", "t", false, "Stdin is a TTY")
 	rootCmd.Flags().BoolVarP(&cliopts.Stdin, "stdin", "i", false, "Pass stdin to container")
