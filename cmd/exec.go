@@ -31,6 +31,7 @@ type Options struct {
 	noTLSVerify      bool
 	directExec       bool
 	directExecNodeIp string
+	Impersonate      string
 }
 
 var protocols = []string{
@@ -93,6 +94,14 @@ func (c *cliSession) prepConfig() error {
 	if err != nil {
 		return err
 	}
+
+	if c.opts.Impersonate != "" {
+		cc.Impersonate = rest.ImpersonationConfig{
+			UserName: c.opts.Impersonate,
+		}
+		klog.V(4).Infof("Impersonating user: %s", c.opts.Impersonate)
+	}
+
 	c.clientConf = cc
 
 	switch c.opts.Namespace {

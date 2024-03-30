@@ -26,6 +26,7 @@ var (
 	noTLSVerify      bool
 	directExec       bool
 	directExecNodeIp string
+	impersonate      string
 )
 
 var rootCmd = &cobra.Command{
@@ -83,6 +84,7 @@ var rootCmd = &cobra.Command{
 			noTLSVerify:      noTLSVerify,
 			directExec:       directExec,
 			directExecNodeIp: directExecNodeIp,
+			Impersonate:      impersonate,
 		}
 		s, err := NewCliSession(&opts)
 		if err != nil {
@@ -183,6 +185,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&namespace, "namespace", "n", "", "Set namespace")
 	rootCmd.PersistentFlags().IntVarP(&loglevel, "loglevel", "v", 2, "Set loglevel")
 	rootCmd.PersistentFlags().BoolVarP(&noTLSVerify, "skip-tls-verify", "k", false, "Don't perform TLS certificate verifiation")
+	rootCmd.PersistentFlags().StringVar(&impersonate, "as", "", "Impersonate another user")
 
 	rootCmd.Flags().BoolVarP(&tty, "tty", "t", false, "Stdin is a TTY")
 	rootCmd.Flags().BoolVarP(&stdinFlag, "stdin", "i", false, "Pass stdin to container")

@@ -10,6 +10,7 @@ Usage:
   kubectl-execws <pod name> [options] -- <cmd>
 
 Flags:
+      --as string                    Impersonate another user
   -c, --container string             Container name
   -h, --help                         help for execws
       --kubeconfig string            kubeconfig file (default is $HOME/.kube/config)
