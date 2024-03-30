@@ -37,12 +37,7 @@ func ContainerValidArgs(cmd *cobra.Command, args []string, toComplete string) ([
 }
 
 func initCompletionCliSession() (*cliSession, error) {
-	opts := Options{
-		Kconfig:     kconfig,
-		Namespace:   namespace,
-		noTLSVerify: noTLSVerify,
-	}
-	return NewCliSession(&opts)
+	return NewCliSession(&cliopts)
 }
 
 func completeAvailableNS(c *cliSession, toComplete string) ([]string, cobra.ShellCompDirective) {

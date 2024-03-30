@@ -13,21 +13,9 @@ import (
 	"k8s.io/klog/v2"
 )
 
-var (
-	releaseVersion   string
-	kconfig          string
-	tty              bool
-	stdinFlag        bool
-	quiet            bool
-	container        string
-	namespace        string
-	loglevel         int
-	noSanityCheck    bool
-	noTLSVerify      bool
-	directExec       bool
-	directExecNodeIp string
-	impersonate      string
-)
+var releaseVersion string
+
+var cliopts Options
 
 var rootCmd = &cobra.Command{
 	Use:                   "kubectl-execws <pod name> [options] -- <cmd>",
@@ -64,29 +52,18 @@ var rootCmd = &cobra.Command{
 		}
 
 		if len(command) == 0 {
-			if tty {
+			if cliopts.TTY {
 				command = []string{"sh", "-c", "exec $(command -v bash || command -v ash || command -v sh)"}
 			} else {
 				return errors.New("Please specify a command")
 			}
 		}
 
-		opts := Options{
-			Command:          command,
-			Container:        container,
-			Kconfig:          kconfig,
-			Namespace:        namespace,
-			Object:           object,
-			Pod:              pod,
-			Stdin:            stdinFlag,
-			TTY:              tty,
-			noSanityCheck:    noSanityCheck,
-			noTLSVerify:      noTLSVerify,
-			directExec:       directExec,
-			directExecNodeIp: directExecNodeIp,
-			Impersonate:      impersonate,
-		}
-		s, err := NewCliSession(&opts)
+		cliopts.Pod = pod
+		cliopts.Object = object
+		cliopts.Command = command
+
+		s, err := NewCliSession(&cliopts)
 		if err != nil {
 			return err
 		}
@@ -101,8 +78,8 @@ var rootCmd = &cobra.Command{
 		}
 
 		// propagate logging flags
-		flag.Set("v", fmt.Sprint(loglevel))
-		flag.Set("stderrthreshold", fmt.Sprint(loglevel))
+		flag.Set("v", fmt.Sprint(cliopts.Loglevel))
+		flag.Set("stderrthreshold", fmt.Sprint(cliopts.Loglevel))
 
 		s.sanityCheck()
 
@@ -181,18 +158,18 @@ func Complete() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&kconfig, "kubeconfig", "", "kubeconfig file (default is $HOME/.kube/config)")
-	rootCmd.PersistentFlags().StringVarP(&namespace, "namespace", "n", "", "Set namespace")
-	rootCmd.PersistentFlags().IntVarP(&loglevel, "loglevel", "v", 2, "Set loglevel")
-	rootCmd.PersistentFlags().BoolVarP(&noTLSVerify, "skip-tls-verify", "k", false, "Don't perform TLS certificate verifiation")
-	rootCmd.PersistentFlags().StringVar(&impersonate, "as", "", "Impersonate another user")
+	rootCmd.PersistentFlags().StringVar(&cliopts.Kconfig, "kubeconfig", "", "kubeconfig file (default is $HOME/.kube/config)")
+	rootCmd.PersistentFlags().StringVarP(&cliopts.Namespace, "namespace", "n", "", "Set namespace")
+	rootCmd.PersistentFlags().IntVarP(&cliopts.Loglevel, "loglevel", "v", 2, "Set loglevel")
+	rootCmd.PersistentFlags().BoolVarP(&cliopts.noTLSVerify, "skip-tls-verify", "k", false, "Don't perform TLS certificate verifiation")
+	rootCmd.PersistentFlags().StringVar(&cliopts.Impersonate, "as", "", "Impersonate another user")
 
-	rootCmd.Flags().BoolVarP(&tty, "tty", "t", false, "Stdin is a TTY")
-	rootCmd.Flags().BoolVarP(&stdinFlag, "stdin", "i", false, "Pass stdin to container")
-	rootCmd.Flags().StringVarP(&container, "container", "c", "", "Container name")
-	rootCmd.Flags().BoolVar(&noSanityCheck, "no-sanity-check", false, "Don't make preflight request to ensure pod exists")
-	rootCmd.Flags().BoolVar(&directExec, "node-direct-exec", false, "Partially bypass the API server, by using the kubelet API")
-	rootCmd.Flags().StringVar(&directExecNodeIp, "node-direct-exec-ip", "", "Node IP to use with direct-exec feature")
+	rootCmd.Flags().BoolVarP(&cliopts.TTY, "tty", "t", false, "Stdin is a TTY")
+	rootCmd.Flags().BoolVarP(&cliopts.Stdin, "stdin", "i", false, "Pass stdin to container")
+	rootCmd.Flags().StringVarP(&cliopts.Container, "container", "c", "", "Container name")
+	rootCmd.Flags().BoolVar(&cliopts.noSanityCheck, "no-sanity-check", false, "Don't make preflight request to ensure pod exists")
+	rootCmd.Flags().BoolVar(&cliopts.directExec, "node-direct-exec", false, "Partially bypass the API server, by using the kubelet API")
+	rootCmd.Flags().StringVar(&cliopts.directExecNodeIp, "node-direct-exec-ip", "", "Node IP to use with direct-exec feature")
 
 	rootCmd.AddCommand(completionCmd)
 	//rootCmd.AddCommand(versionCmd)

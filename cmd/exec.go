@@ -31,6 +31,7 @@ type Options struct {
 	noTLSVerify      bool
 	directExec       bool
 	directExecNodeIp string
+	Loglevel         int
 	Impersonate      string
 }
 
