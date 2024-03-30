@@ -142,7 +142,11 @@ func (c *cliSession) prepExec() (*http.Request, error) {
 		return nil, errors.New("Cannot determine websocket scheme")
 	}
 
-	u.Path = fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/exec", c.namespace, c.opts.Pod)
+	u.Path, err = url.JoinPath(u.Path, "api", "v1", "namespaces", c.namespace, "pods", c.opts.Pod, "exec")
+	if err != nil {
+		return nil, err
+	}
+
 	query := url.Values{}
 	query.Add("stdout", "true")
 	query.Add("stderr", "true")

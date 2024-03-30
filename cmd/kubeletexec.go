@@ -58,7 +58,11 @@ func (c *cliSession) prepKubeletExec() (*http.Request, error) {
 		return nil, errors.New("Cannot determine container name")
 	}
 
-	u.Path = fmt.Sprintf("/exec/%s/%s/%s", c.namespace, c.opts.Pod, ctrName)
+	u.Path, err = url.JoinPath("exec", c.namespace, c.opts.Pod, ctrName)
+	if err != nil {
+		return nil, err
+	}
+
 	query := url.Values{}
 	query.Add("output", "1")
 	query.Add("error", "1")
